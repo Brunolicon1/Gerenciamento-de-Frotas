@@ -1,160 +1,203 @@
-// lib/screens/approvals_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:extensao3/data/mock_database.dart';
 
-class ApprovalsScreen extends StatelessWidget {
+class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Usamos um ListView.builder. Esta é a forma mais eficiente
-    // de construir uma lista, especialmente se ela for longa.
-    // No nosso caso, vamos usar uma lista estática de 3 itens
-    // apenas para o exemplo.
+  State<ApprovalsScreen> createState() => _ApprovalsScreenState();
+}
 
-    // 1. DADOS FICTÍCIOS (MOCK DATA)
-    // No futuro, isto viria de um banco de dados ou API
-    final List<Map<String, String>> pendingApprovals = [
-      {
-        'type': 'Solicitação de Manutenção',
-        'details': 'Veículo ABC-1234: Troca de óleo e filtros.',
-        'requester': 'Por: João Silva (Motorista)',
-      },
-      {
-        'type': 'Pedido de Reembolso',
-        'details': 'Abastecimento emergencial - R\$ 150,00',
-        'requester': 'Por: Maria Souza (Motorista)',
-      },
-      {
-        'type': 'Ajuste de Rota',
-        'details': 'Desvio de rota para cliente prioritário.',
-        'requester': 'Por: Carlos Lima (Logística)',
-      },
-    ];
+class _ApprovalsScreenState extends State<ApprovalsScreen> {
+  List<Request> _displayList = [];
 
-    // Se a lista estiver vazia (no futuro)
-    if (pendingApprovals.isEmpty) {
-      return const Center(
-        child: Text(
-          'Nenhuma aprovação pendente.',
-          style: TextStyle(fontSize: 18, color: Colors.grey),
-        ),
-      );
-    }
+  @override
+  void initState() {
+    super.initState();
+    _loadRequests();
+  }
 
-    // 2. CONSTRUÇÃO DA LISTA
-    return ListView.builder(
-      // Padding em volta da lista inteira
-      padding: const EdgeInsets.all(16.0),
+  void _loadRequests() {
+    setState(() {
+      _displayList = MockDatabase.pendingRequests
+          .where((r) => r.status == 'pendente')
+          .toList();
+    });
+  }
 
-      // Quantos itens a lista terá
-      itemCount: pendingApprovals.length,
+  // --- NOVA LÓGICA DE CONFIRMAÇÃO ---
 
-      // Como construir cada item
-      itemBuilder: (context, index) {
-        final item = pendingApprovals[index];
+  Future<void> _confirmAction({
+    required Request request,
+    required bool isApproval,
+  }) async {
+    final actionName = isApproval ? "Aprovar" : "Negar";
+    final color = isApproval ? Colors.green : Colors.red;
 
-        // Chamamos o nosso widget helper para construir o cartão
-        return _buildApprovalCard(
-          context: context,
-          title: item['type']!,
-          subtitle: item['details']!,
-          requester: item['requester']!,
-          onApprove: () {
-            print('Aprovando item: ${item['type']}');
-            // Lógica de aprovação (ex: remover item da lista)
-          },
-          onReject: () {
-            print('Recusando item: ${item['type']}');
-            // Lógica de recusa
-          },
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // O usuário é obrigado a escolher uma opção
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('$actionName Solicitação?'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('Você está prestes a ${actionName.toLowerCase()} o pedido de:'),
+                const SizedBox(height: 8),
+                Text(request.requester, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text('Tem certeza que deseja continuar?'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            // Botão CANCELAR
+            TextButton(
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o diálogo sem fazer nada
+              },
+            ),
+            // Botão CONFIRMAR
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Confirmar $actionName'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o diálogo
+                // Executa a ação real
+                if (isApproval) {
+                  _executeApprove(request);
+                } else {
+                  _executeReject(request);
+                }
+              },
+            ),
+          ],
         );
       },
     );
   }
 
-  // --- 3. WIDGET HELPER PARA O CARTÃO DE APROVAÇÃO ---
-  Widget _buildApprovalCard({
-    required BuildContext context,
-    required String title,
-    required String subtitle,
-    required String requester,
-    required VoidCallback onApprove,
-    required VoidCallback onReject,
-  }) {
+  // --- AÇÕES REAIS (SÓ RODAM DEPOIS DO DIÁLOGO) ---
+
+  void _executeApprove(Request request) {
+    MockDatabase.approveRequest(request.id);
+    _removeRequestFromScreen(request);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Solicitação de ${request.requester} APROVADA!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _executeReject(Request request) {
+    MockDatabase.rejectRequest(request.id);
+    _removeRequestFromScreen(request);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Solicitação RECUSADA.'),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
+  void _removeRequestFromScreen(Request request) {
+    setState(() {
+      _displayList.remove(request);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _displayList.isEmpty
+          ? _buildEmptyState()
+          : ListView.builder(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: _displayList.length,
+        itemBuilder: (context, index) {
+          return _buildApprovalCard(_displayList[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle_outline, size: 80, color: Colors.green.shade100),
+          const SizedBox(height: 16),
+          const Text(
+            'Tudo limpo por aqui!',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          const Text('Nenhuma pendência para aprovação.', style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovalCard(Request item) {
     return Card(
-      elevation: 4.0,
+      elevation: 3.0,
       margin: const EdgeInsets.only(bottom: 16.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          // Alinha o texto à esquerda
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Ícone e Título ---
             Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+                _getIconForType(item.type),
                 const SizedBox(width: 12.0),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    item.type,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
+                ),
+                Text(
+                  "${item.date.day}/${item.date.month}",
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(height: 12.0),
-
-            // --- Detalhes ---
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            Text(item.details, style: const TextStyle(fontSize: 14, color: Colors.black87)),
             const SizedBox(height: 8.0),
-
-            // --- Solicitante ---
-            Text(
-              requester,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
-              ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)),
+              child: Text(item.requester, style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontStyle: FontStyle.italic)),
             ),
-
-            // Divisor
             const Divider(height: 24.0, thickness: 1.0),
-
-            // --- 4. BOTÕES DE AÇÃO ---
             Row(
-              // Coloca os botões no final (à direita)
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Botão Recusar (TextButton para menos destaque)
-                TextButton(
-                  onPressed: onReject,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red.shade700,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                  child: const Text('Recusar'),
+                // BOTÃO NEGAR -> Chama o Dialog com isApproval = false
+                OutlinedButton(
+                  onPressed: () => _confirmAction(request: item, isApproval: false),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                  child: const Text('Negar'),
                 ),
-                const SizedBox(width: 8.0),
-
-                // Botão Aprovar (ElevatedButton para mais destaque)
-                ElevatedButton(
-                  onPressed: onApprove,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                  ),
-                  child: const Text('Aprovar'),
+                const SizedBox(width: 12.0),
+                // BOTÃO APROVAR -> Chama o Dialog com isApproval = true
+                ElevatedButton.icon(
+                  onPressed: () => _confirmAction(request: item, isApproval: true),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Aprovar'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600, foregroundColor: Colors.white),
                 ),
               ],
             ),
@@ -162,5 +205,21 @@ class ApprovalsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _getIconForType(String type) {
+    IconData icon;
+    Color color;
+    if (type.contains('Manutenção')) {
+      icon = Icons.build_circle;
+      color = Colors.orange;
+    } else if (type.contains('Reembolso')) {
+      icon = Icons.attach_money;
+      color = Colors.green;
+    } else {
+      icon = Icons.map;
+      color = Colors.blue;
+    }
+    return Icon(icon, color: color, size: 28);
   }
 }

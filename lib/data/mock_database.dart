@@ -26,6 +26,24 @@ class Activity {
   });
 }
 
+class Request {
+  final String id;
+  final String type;      // Ex: Manutenção, Reembolso, Viagem
+  final String details;   // Descrição do que precisa
+  final String requester; // Nome de quem pediu
+  final DateTime date;    // Data do pedido
+  String status;          // 'pendente', 'aprovado', 'rejeitado'
+
+  Request({
+    required this.id,
+    required this.type,
+    required this.details,
+    required this.requester,
+    required this.date,
+    this.status = 'pendente', // Padrão é pendente
+  });
+}
+
 
 // 1. Definição simples dos perfis (Cargos)
 enum UserRole {
@@ -158,5 +176,41 @@ class MockDatabase {
   static List<Activity> getActivitiesForDate(DateTime date) {
 // Na vida real filtraria por usuário também
     return activities;
+  }
+
+  static final List<Request> pendingRequests = [
+    Request(
+      id: 'r1',
+      type: 'Solicitação de Manutenção',
+      details: 'Veículo ABC-1234: Troca de óleo e filtros.',
+      requester: 'Mot. Bruno Oliveira',
+      date: DateTime.now().subtract(const Duration(hours: 2)),
+    ),
+    Request(
+      id: 'r2',
+      type: 'Pedido de Reembolso',
+      details: 'Abastecimento emergencial - R\$ 150,00 (Posto Shell).',
+      requester: 'Mot. João Silva',
+      date: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+    Request(
+      id: 'r3',
+      type: 'Ajuste de Rota',
+      details: 'Alteração de destino para incluir parada no Fórum.',
+      requester: 'Agente Carlos Lima',
+      date: DateTime.now().subtract(const Duration(minutes: 30)),
+    ),
+  ];
+
+  // Métodos para o Gestor interagir
+  static void approveRequest(String id) {
+    final req = pendingRequests.firstWhere((r) => r.id == id);
+    req.status = 'aprovado';
+    // Na vida real, isso salvaria no banco e notificaria o motorista
+  }
+
+  static void rejectRequest(String id) {
+    final req = pendingRequests.firstWhere((r) => r.id == id);
+    req.status = 'rejeitado';
   }
 }
