@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
-import 'package:extensao3/data/mock_database.dart'; // Importando o Modelo Activity
+import 'package:extensao3/data/mock_database.dart';
+
+import 'check_in_screen.dart'; // Importando o Modelo Activity
 
 class TripDetailsScreen extends StatelessWidget {
   // Recebemos a viagem inteira vinda do banco de dados
@@ -108,10 +110,13 @@ class TripDetailsScreen extends StatelessWidget {
                     height: 55,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // Navegação para a tela de Check-in (Futuro)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Abrindo Vistoria de Veículo...")),
-                        );
+                          // Navega para a tela de Check-in passando os dados da viagem
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CheckInScreen(activity: activity),
+                            ),
+                          );
                       },
                       icon: const Icon(Icons.vpn_key),
                       label: const Text("REALIZAR CHECK-IN (RETIRADA)"),
