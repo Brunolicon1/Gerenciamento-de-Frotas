@@ -1,4 +1,5 @@
 import 'package:extensao3/feature/registration-screen.dart';
+import 'package:extensao3/screens/new_request_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
 import 'package:extensao3/screens/main_screen.dart';
@@ -88,6 +89,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Se for MOTORISTA, vai para tela de atividades
                         print("Motorista logado: Indo para Rota");
                         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const DriverActivitiesScreen()));
+
+                      }  if (user?.role == UserRole.requester) {
+                        print("Solicitante logado: Indo para Solicitação");
+                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const NewRequestScreen()));
 
                       } else {
                         // Se for GESTOR, ADMIN, etc., vai para o Dashboard
