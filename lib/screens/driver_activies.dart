@@ -1,23 +1,10 @@
+import 'package:extensao3/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:extensao3/widgets/custom_app_bar.dart'; // <--- Importe seu widget
-import 'package:extensao3/feature/login-screen.dart';   // <--- Para o botão de sair funcionar
+import 'package:extensao3/widgets/custom_app_bar.dart'; // <--- Importe seu widgetimport 'trip_details_screen.dart';
 
-// --- MOCK MODEL (Modelo fictício apenas para esta tela) ---
-class Activity {
-  final String id;
-  final String title; // Ex: Entrega, Coleta
-  final String route; // Ex: Centro -> Zona Sul
-  final DateTime time;
-  final String status; // 'pendente', 'em_andamento', 'concluido'
+import '../data/mock_database.dart';   // <--- Para o botão de sair funcionar
 
-  Activity({
-    required this.id,
-    required this.title,
-    required this.route,
-    required this.time,
-    required this.status,
-  });
-}
+
 
 class DriverActivitiesScreen extends StatefulWidget {
   const DriverActivitiesScreen({super.key});
@@ -30,40 +17,8 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
   // 1. Variável para controlar o dia selecionado (Começa com HOJE)
   DateTime _selectedDate = DateTime.now();
 
-  // 2. Dados Fictícios (Misturando dias diferentes)
-  final List<Activity> _allActivities = [
-    // ATIVIDADES DE HOJE
-    Activity(
-      id: '1',
-      title: 'Entrega Prioritária',
-      route: 'CD Logística -> Mercado Central',
-      time: DateTime.now().add(const Duration(hours: 1)), // Daqui a 1 hora
-      status: 'em_andamento',
-    ),
-    Activity(
-      id: '2',
-      title: 'Coleta de Materiais',
-      route: 'Fábrica ABC -> CD Logística',
-      time: DateTime.now().add(const Duration(hours: 3)),
-      status: 'pendente',
-    ),
-    Activity(
-      id: '3',
-      title: 'Abastecimento',
-      route: 'Posto Shell - Rodovia',
-      time: DateTime.now().add(const Duration(hours: 5)),
-      status: 'pendente',
-    ),
-
-    // ATIVIDADES DE AMANHÃ
-    Activity(
-      id: '4',
-      title: 'Rota Matinal',
-      route: 'Zona Norte Completa',
-      time: DateTime.now().add(const Duration(days: 1, hours: -2)),
-      status: 'pendente',
-    ),
-  ];
+// Pega as atividades direto do banco
+  final List<Activity> _allActivities = MockDatabase.activities;
 
   // Helper para verificar se duas datas são o mesmo dia (ignora horas)
   bool _isSameDay(DateTime date1, DateTime date2) {
@@ -261,12 +216,20 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TripDetailsScreen(activity: activity),
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.blue.shade800,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
+
             ),
             child: const Text("VER DETALHES"),
           )

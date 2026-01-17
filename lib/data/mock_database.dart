@@ -1,5 +1,32 @@
 // Arquivo: lib/data/mock_database.dart
 
+class Activity {
+  final String id;
+  final String title;       // Ex: Entrega Prioritária
+  final String description; // Ex: Levar documentos sigilosos
+  final String route;       // Ex: CD Logística -> Mercado Central
+  final DateTime time;      // Data e Hora
+  final String status;      // 'pendente', 'em_andamento', 'concluido'
+
+  // Novos campos para a tela de detalhes
+  final String vehicleModel; // Ex: Pajero Dakar
+  final String vehiclePlate; // Ex: MXP-1234
+  final List<String> team;   // Lista de passageiros/equipe
+
+  Activity({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.route,
+    required this.time,
+    required this.status,
+    required this.vehicleModel,
+    required this.vehiclePlate,
+    required this.team,
+  });
+}
+
+
 // 1. Definição simples dos perfis (Cargos)
 enum UserRole {
   admin,      // Administrador
@@ -97,5 +124,39 @@ class MockDatabase {
   // Função de Logout
   static void logout() {
     currentUser = null;
+  }
+
+  static final List<Activity> activities = [
+    // VIAGEM 1: A que está "Em Andamento" (Destaque)
+    Activity(
+      id: '101',
+      title: 'Operação Madrugada',
+      description: 'Transporte de equipe para operação de vigilância.',
+      route: 'Delegacia Central -> Zona Norte',
+      time: DateTime.now().add(const Duration(hours: 1)), // Daqui a 1h
+      status: 'em_andamento',
+      vehicleModel: 'Mitsubishi Pajero Dakar',
+      vehiclePlate: 'MXP-9988',
+      team: ['Del. Carlos Silva', 'Agente Souza', 'Perito Marcos'],
+    ),
+
+    // VIAGEM 2: Pendente
+    Activity(
+      id: '102',
+      title: 'Transporte de Provas',
+      description: 'Levar material apreendido para a perícia.',
+      route: 'Delegacia -> Instituto de Criminalística',
+      time: DateTime.now().add(const Duration(hours: 4)),
+      status: 'pendente',
+      vehicleModel: 'Renault Duster',
+      vehiclePlate: 'TO-1234 (Reservada)',
+      team: ['Escrivã Ana'],
+    ),
+  ];
+
+// Mét0do para pegar viagens de hoje (Simulação)
+  static List<Activity> getActivitiesForDate(DateTime date) {
+// Na vida real filtraria por usuário também
+    return activities;
   }
 }
