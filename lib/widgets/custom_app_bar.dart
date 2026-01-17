@@ -1,45 +1,55 @@
-// lib/widgets/custom_app_bar.dart
-
 import 'package:flutter/material.dart';
+import 'package:extensao3/feature/login-screen.dart'; // Necessário para navegar de volta
+import 'package:extensao3/data/mock_database.dart';   // Para limpar o usuário logado
 
-// Nosso widget implementa PreferredSizeWidget para que possa ser usado
-// na propriedade 'appBar' do Scaffold.
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final Widget? leading;
+  // Removemos o 'actions' daqui. Não pedimos mais isso para quem chama.
 
-  // --- NOSSOS PARÂMETROS ---
-  final String title; // O título que será exibido
-  final List<Widget>? actions; // Lista opcional de botões (ex: Logout)
-  final Widget? leading; // Widget opcional à esquerda (ex: botão Voltar)
-
-  // O construtor recebe os parâmetros
   const CustomAppBar({
     super.key,
-    required this.title, // O título é obrigatório
-    this.actions, // 'actions' é opcional
-    this.leading, // 'leading' é opcional
+    required this.title,
+    this.leading,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Retornamos a AppBar padrão do Flutter, mas agora
-    // ela é alimentada pelos nossos parâmetros.
     return AppBar(
       title: Text(title),
-
-      // Passamos os parâmetros recebidos para a AppBar real
       leading: leading,
-      actions: actions,
 
-      // Nosso estilo padrão
+      // CONFIGURAÇÃO FIXA DE ESTILO
       backgroundColor: Colors.blueAccent,
       foregroundColor: Colors.white,
-      elevation: 4.0, // Uma leve sombra
+      elevation: 4.0,
+
+      // AQUI ESTÁ A MUDANÇA: O botão agora é fixo da barra
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Sair do Sistema',
+          onPressed: () {
+            _handleLogout(context);
+          },
+        ),
+      ],
     );
   }
 
-  // --- PARTE OBRIGATÓRIA do PreferredSizeWidget ---
-  // Precisamos dizer ao Scaffold qual a altura que nossa AppBar terá.
-  // kToolbarHeight é a altura padrão da AppBar no Flutter.
+  // Função privada para organizar a lógica de sair
+  void _handleLogout(BuildContext context) {
+    // 1. Limpa os dados do usuário no nosso Mock
+    MockDatabase.logout();
+
+    // 2. Redireciona para o Login (removendo o histórico de volta)
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Remove todas as rotas anteriores da pilha
+    );
+  }
+
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

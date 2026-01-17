@@ -1,8 +1,11 @@
 import 'package:extensao3/feature/registration-screen.dart';
 import 'package:flutter/material.dart';
-//import 'package:extensao3/screens/dashboard_screen.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
 import 'package:extensao3/screens/main_screen.dart';
+import 'package:extensao3/data/mock_database.dart';
+
+import '../screens/driver_activies.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +16,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
+  final _loginController = TextEditingController(); // Captura o email/login
+  final _passwordController = TextEditingController(); // Captura a senha
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 24.0),
 
               TextField(
+                controller: _loginController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'E-mail',
@@ -42,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16.0),
 
               TextField(
+                controller: _passwordController,
                 obscureText: !_isPasswordVisible,
                 decoration: InputDecoration(
                   labelText: 'Senha',
@@ -71,13 +78,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 50.0,
                 child: ElevatedButton(
                   onPressed: () {
-                    print('Botão de Login pressionado!');
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MainScreen(),
-                      ),
-                    );
+                    final loginInput = _loginController.text;
+                    final passwordInput = _passwordController.text;
+                    final bool sucesso = MockDatabase.login(loginInput, passwordInput);//banco de dados falso
+                    if (sucesso) {
+                      // Se o login deu certo, verificamos QUEM é o usuário
+                      final user = MockDatabase.currentUser;
+                      if (user?.role == UserRole.driver) {
+                        // Se for MOTORISTA, vai para tela de atividades
+                        print("Motorista logado: Indo para Rota");
+                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const DriverActivitiesScreen()));
+
+                      } else {
+                        // Se for GESTOR, ADMIN, etc., vai para o Dashboard
+                        print("Gestão logada: Indo para Dashboard");
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MainScreen(),
+                          ),
+                        );
+                      }
+
+                    } else {
+                      // 3. Se o login falhou, mostramos erro
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Login ou senha inválidos!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,

@@ -50,21 +50,6 @@ class _MainScreenState extends State<MainScreen> {
       appBar: CustomAppBar(
         // O título é dinâmico, baseado na aba selecionada
         title: _pageTitles[_selectedIndex],
-
-        // O botão de "Sair" fica aqui, fixo
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair',
-            onPressed: () {
-              // Ação de Logout
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
-            },
-          ),
-        ],
       ),
 
       // 2. O CORPO DA TELA
