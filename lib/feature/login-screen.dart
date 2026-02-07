@@ -1,12 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:extensao3/feature/registration-screen.dart';
 import 'package:extensao3/screens/new_request_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
 import 'package:extensao3/screens/main_screen.dart';
-import 'package:extensao3/data/mock_database.dart';
+import 'package:extensao3/screens/driver_activies.dart';
 
-import '../screens/driver_activies.dart';
-
+// Integração com a API e Modelos
+import 'package:extensao3/services/auth_service.dart';
+import '../models/users/user_role.dart';
+import '../models/users/pessoa.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,8 +19,76 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
-  final _loginController = TextEditingController(); // Captura o email/login
-  final _passwordController = TextEditingController(); // Captura a senha
+  bool _isLoading = false; // Controle de feedback visual
+  
+  // Controllers atualizados para refletir o uso de CPF
+  final _cpfController = TextEditingController(); 
+  final _passwordController = TextEditingController();
+
+  /// Função principal que orquestra o login via API
+  Future<void> _handleLogin() async {
+    final cpf = _cpfController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (cpf.isEmpty || password.isEmpty) {
+      _showErrorSnackBar('Por favor, preencha todos os campos.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authService = AuthService();
+      // Chama a API real
+      final Pessoa? usuario = await authService.login(cpf, password);
+
+      if (!mounted) return;
+
+      if (usuario != null) {
+        // Lógica de Redirecionamento baseada no Role (Cargo) retornado pela API
+        _redirectUser(usuario);
+      } else {
+        _showErrorSnackBar('CPF ou senha inválidos!');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Erro ao conectar com o servidor.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _redirectUser(Pessoa user) {
+    if (user.role == UserRole.driver) {
+      print("Motorista logado: Indo para Atividades");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DriverActivitiesScreen()),
+      );
+    } else if (user.role == UserRole.admin || user.role == UserRole.manager) {
+      print("Gestão/Admin logada: Indo para Dashboard");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MainScreen()),
+      );
+    } else {
+      // Caso sua API retorne um role de solicitante/requester
+      print("Solicitante logado: Indo para Nova Solicitação");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const NewRequestScreen()),
+      );
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,21 +103,23 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 24.0),
 
+              // Campo de CPF (Antigo E-mail)
               TextField(
-                controller: _loginController,
-                keyboardType: TextInputType.emailAddress,
+                controller: _cpfController,
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'E-mail',
-                  hintText: 'exemplo@dominio.com',
+                  labelText: 'CPF',
+                  hintText: '111.222.333-44',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12.0),
                   ),
-                  prefixIcon: Icon(Icons.email),
+                  prefixIcon: const Icon(Icons.badge_outlined),
                 ),
               ),
 
               const SizedBox(height: 16.0),
 
+              // Campo de Senha
               TextField(
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
@@ -56,65 +128,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12.0),
                   ),
-                  prefixIcon: Icon(Icons.lock),
+                  prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _isPasswordVisible
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                      _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                     ),
                     onPressed: () {
-                      setState(() {
-                        _isPasswordVisible = !_isPasswordVisible;
-                      });
+                      setState(() => _isPasswordVisible = !_isPasswordVisible);
                     },
                   ),
                 ),
               ),
 
-              const SizedBox(height: 24.0),
+              const SizedBox(height: 32.0),
 
+              // Botão Entrar com estado de carregamento
               SizedBox(
                 width: double.infinity,
                 height: 50.0,
                 child: ElevatedButton(
-                  onPressed: () {
-                    final loginInput = _loginController.text;
-                    final passwordInput = _passwordController.text;
-                    final bool sucesso = MockDatabase.login(loginInput, passwordInput);//banco de dados falso
-                    if (sucesso) {
-                      // Se o login deu certo, verificamos QUEM é o usuário
-                      final user = MockDatabase.currentUser;
-                      if (user?.role == UserRole.driver) {
-                        // Se for MOTORISTA, vai para tela de atividades
-                        print("Motorista logado: Indo para Rota");
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const DriverActivitiesScreen()));
-
-                      }  if (user?.role == UserRole.requester) {
-                        print("Solicitante logado: Indo para Solicitação");
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const NewRequestScreen()));
-
-                      } else {
-                        // Se for GESTOR, ADMIN, etc., vai para o Dashboard
-                        print("Gestão logada: Indo para Dashboard");
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MainScreen(),
-                          ),
-                        );
-                      }
-
-                    } else {
-                      // 3. Se o login falhou, mostramos erro
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Login ou senha inválidos!'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
@@ -122,51 +155,39 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12.0),
                     ),
                   ),
-                  child: const Text('Entrar', style: TextStyle(fontSize: 18.0)),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Entrar', style: TextStyle(fontSize: 18.0)),
                 ),
               ),
 
-              // Um espaço entre o botão "Entrar" e o link de cadastro
               const SizedBox(height: 16.0),
 
+              // Link de Cadastro
               TextButton(
-                // --- PASSO 5: Navegação ---
                 onPressed: () {
-                  print('Navegando para a tela de Cadastro...');
-                  // comando para abrir uma nova tela
                   Navigator.push(
                     context,
-                    // MaterialPageRoute é a transição de tela padrão (desliza)
-                    MaterialPageRoute(
-                      builder: (context) => const RegistrationScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const RegistrationScreen()),
                   );
                 },
-
-                // Estilização para parecer mais com um link de texto
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-
-                // ---RichText para múltiplos estilos ---
                 child: RichText(
                   text: TextSpan(
-                    // Estilo padrão (para "Ainda não tem conta?")
                     style: TextStyle(
-                      // Pega a cor de texto padrão do tema
                       color: Theme.of(context).textTheme.bodyMedium?.color,
                       fontSize: 14.0,
                     ),
-                    children: <TextSpan>[
-                      const TextSpan(text: 'Ainda não tem conta? '),
-
-                      // Estilo do "link" (para "Cadastre-se")
+                    children: const [
+                      TextSpan(text: 'Ainda não tem conta? '),
                       TextSpan(
                         text: 'Cadastre-se',
                         style: TextStyle(
-                          color: Colors.blueAccent, // Cor de destaque
-                          fontWeight: FontWeight.bold, // Negrito
+                          color: Colors.blueAccent,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],

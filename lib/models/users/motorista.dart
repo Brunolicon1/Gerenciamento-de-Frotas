@@ -12,20 +12,16 @@ class Motorista extends Pessoa {
   Motorista({
     required super.id,
     required super.name,
-    required super.email,
     required super.cpf,
-    required super.phone,
     required this.cnhNumber,
     required this.cnhCategory,
-  }) : super(role: UserRole.driver);
+  }) : super(role: UserRole.DRIVER);
 
   factory Motorista.fromJson(Map<String, dynamic> json) {
     return Motorista(
       id: json['id'],
       name: json['name'],
-      email: json['email'],
       cpf: json['cpf'],
-      phone: json['phone'],
       cnhNumber: json['cnhNumber'] ?? '',
       cnhCategory: json['cnhCategory'] ?? 'B',
     );
@@ -36,10 +32,8 @@ class Motorista extends Pessoa {
     return {
       'id': id,
       'name': name,
-      'email': email,
       'cpf': cpf,
-      'phone': phone,
-      'role': 'driver',
+      'role': 'DRIVER',
       'cnhNumber': cnhNumber,
       'cnhCategory': cnhCategory,
     };
