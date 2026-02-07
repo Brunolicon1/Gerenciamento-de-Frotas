@@ -10,9 +10,9 @@ class Solicitante extends Pessoa {
 
   factory Solicitante.fromJson(Map<String, dynamic> json) {
     return Solicitante(
-      id: json['id']?.toString() ?? '',
+      id: json['id'],
       name: json['name'] ?? '',
-      cpf: json['registration'] ?? '', // No seu SQL, a matrícula/CPF é 'registration'
+      cpf: json['cpf'] ?? '', // No seu SQL, a matrícula/CPF é 'registration'
     );
   }
 
@@ -21,7 +21,7 @@ class Solicitante extends Pessoa {
     return {
       'id': id,
       'name': name,
-      'registration': cpf,
+      'cpf': cpf,
       'role': 'REQUESTER',
     };
   }

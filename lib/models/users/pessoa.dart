@@ -8,7 +8,7 @@ import 'motorista.dart';
 import 'solicitante.dart';
 
 abstract class Pessoa {
-  final String id;
+  final int id;
   final String name;
   final String cpf;
   final UserRole role;
