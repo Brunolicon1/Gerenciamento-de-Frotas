@@ -5,44 +5,44 @@ import 'user_role.dart';
 import 'admin.dart';
 import 'gestor_frotas.dart';
 import 'motorista.dart';
+import 'solicitante.dart';
 
 abstract class Pessoa {
-  final String id;
+  final int id;
   final String name;
-  final String email;
   final String cpf;
-  final String phone;
   final UserRole role;
 
   Pessoa({
     required this.id,
     required this.name,
-    required this.email,
     required this.cpf,
-    required this.phone,
     required this.role,
   });
 
   // Helpers para facilitar verificações no código
-  bool get isAdmin => role == UserRole.admin;
-  bool get isManager => role == UserRole.manager;
-  bool get isDriver => role == UserRole.driver;
+  bool get isAdmin => role == UserRole.ADMIN;
+  bool get isManager => role == UserRole.FLEET_MANAGER;
+  bool get isDriver => role == UserRole.DRIVER;
+  bool get isSolicitante => role == UserRole.REQUESTER;
 
   // Factory inteligente que decide qual arquivo chamar
-  factory Pessoa.fromJson(Map<String, dynamic> json) {
-    String roleString = json['role'] ?? 'driver';
+factory Pessoa.fromJson(Map<String, dynamic> json) {
+  // A API deve retornar o campo 'role' baseado na tabela user_roles
+  String roleString = json['role'] ?? 'REQUESTER';
 
-    switch (roleString) {
-      case 'admin':
-        return Admin.fromJson(json);
-      case 'manager':
-        return GestorFrotas.fromJson(json);
-      case 'driver':
-        return Motorista.fromJson(json);
-      default:
-        return Motorista.fromJson(json);
-    }
+  switch (roleString) {
+    case 'ADMIN':
+      return Admin.fromJson(json);
+    case 'FLEET_MANAGER':
+      return GestorFrotas.fromJson(json);
+    case 'DRIVER':
+      return Motorista.fromJson(json);
+    case 'REQUESTER':
+    default:
+      return Solicitante.fromJson(json); // Crie esta classe se não existir
   }
+}
 
   Map<String, dynamic> toJson();
 }

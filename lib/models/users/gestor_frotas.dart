@@ -9,18 +9,14 @@ class GestorFrotas extends Pessoa {
   GestorFrotas({
     required super.id,
     required super.name,
-    required super.email,
     required super.cpf,
-    required super.phone,
-  }) : super(role: UserRole.manager);
+  }) : super(role: UserRole.FLEET_MANAGER);
 
   factory GestorFrotas.fromJson(Map<String, dynamic> json) {
     return GestorFrotas(
       id: json['id'],
       name: json['name'],
-      email: json['email'],
       cpf: json['cpf'],
-      phone: json['phone'],
     );
   }
 
@@ -29,10 +25,8 @@ class GestorFrotas extends Pessoa {
     return {
       'id': id,
       'name': name,
-      'email': email,
       'cpf': cpf,
-      'phone': phone,
-      'role': 'manager',
+      'role': 'FLEET_MANAGER',
     };
   }
 }

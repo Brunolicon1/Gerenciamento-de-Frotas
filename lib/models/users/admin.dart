@@ -7,18 +7,14 @@ class Admin extends Pessoa {
   Admin({
     required super.id,
     required super.name,
-    required super.email,
     required super.cpf,
-    required super.phone,
-  }) : super(role: UserRole.admin);
+  }) : super(role: UserRole.ADMIN);
 
   factory Admin.fromJson(Map<String, dynamic> json) {
     return Admin(
       id: json['id'],
       name: json['name'],
-      email: json['email'],
       cpf: json['cpf'],
-      phone: json['phone'],
     );
   }
 
@@ -27,10 +23,8 @@ class Admin extends Pessoa {
     return {
       'id': id,
       'name': name,
-      'email': email,
       'cpf': cpf,
-      'phone': phone,
-      'role': 'admin',
+      'role': 'ADMIN',
     };
   }
 }
