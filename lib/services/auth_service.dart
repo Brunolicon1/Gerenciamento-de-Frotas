@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/users/pessoa.dart';
+import './token_storage.dart';
 // lib/services/auth_service.dart
 
 class AuthService {
-  final String _baseUrl = "http://200.137.0.24:31628"; // Removi a barra extra no final
+  final String _baseUrl = "http://200.137.0.24:31628/auth"; // Removi a barra extra no final
 
   Future<Pessoa?> login(String cpf, String password) async {
   final url = Uri.parse('$_baseUrl/login');
@@ -20,25 +21,26 @@ class AuthService {
     );
 
     if (response.statusCode == 200) {
-  final Map<String, dynamic> data = jsonDecode(response.body);
-  
-  // 1. Extrai o token se precisar salvar depois
-  String token = data['token']; 
+      final Map<String, dynamic> data = jsonDecode(response.body);
 
-  // 2. Prepara os dados para a Factory Pessoa
-  // Como o DTO envia uma lista de roles, pegamos o primeiro
-  Map<String, dynamic> userJson = {
-    "id": "0", // O DTO não envia ID, você pode colocar um placeholder
-    "name": data['name'],
-    "cpf": cpf, 
-    "role": (data['roles'] as List).first.toString(), // Pega o primeiro cargo da lista
-  };
+      String token = data['token'];
 
-  return Pessoa.fromJson(userJson);
-}
+      // 🔥 SALVA O TOKEN AQUI
+      await TokenStorage.saveToken(token);
+
+      Map<String, dynamic> userJson = {
+        "id": 0,
+        "name": data['name'],
+        "cpf": cpf,
+        "role": (data['roles'] as List).first.toString(),
+      };
+
+      return Pessoa.fromJson(userJson);
+    }
+
     return null;
   } catch (e) {
-    print("Erro detalhado: $e"); // Isso vai te mostrar se o erro é no JSON ou na Rede
+    print("Erro detalhado: $e");
     return null;
   }
 }
