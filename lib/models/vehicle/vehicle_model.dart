@@ -1,6 +1,6 @@
 class Vehicle {
   final int id;
-  final String plate;
+  final String licensePlate;
   final String make;
   final String model;
   final double currentMileage; // Alterado para double para suportar 36.980
@@ -8,7 +8,7 @@ class Vehicle {
 
   Vehicle({
     required this.id,
-    required this.plate,
+    required this.licensePlate,
     required this.make,
     required this.model,
     required this.currentMileage,
@@ -19,7 +19,7 @@ class Vehicle {
     return Vehicle(
       id: json['id'] ?? 0,
       // Tenta ler 'licensePlate' (API) ou 'value' (Banco) 
-      plate: (json['licensePlate'] ?? json['value'] ?? '').toString(),
+      licensePlate: (json['licensePlate'] ?? json['value'] ?? '').toString(),
       make: json['make']?.toString() ?? '',
       model: json['model']?.toString() ?? '',
       currentMileage: double.tryParse(json['currentMileage']?.toString() ?? 

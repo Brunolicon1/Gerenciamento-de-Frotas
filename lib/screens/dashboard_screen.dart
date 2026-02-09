@@ -371,7 +371,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           size: 20,
         ),
         title: Text(
-          v.plate,
+          v.licensePlate,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
         ),
         subtitle: Text(
