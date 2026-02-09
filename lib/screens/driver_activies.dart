@@ -1,10 +1,9 @@
-import 'package:extensao3/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:extensao3/widgets/custom_app_bar.dart'; // <--- Importe seu widgetimport 'trip_details_screen.dart';
-
-import '../data/mock_database.dart';   // <--- Para o botão de sair funcionar
-
-
+import 'package:extensao3/widgets/custom_app_bar.dart';
+import 'package:extensao3/screens/trip_details_screen.dart';
+import '../services/driver/usage_service.dart';
+import '../models/vehicle/vehicle_usage_model.dart';
+import 'package:intl/intl.dart'; // Adicione intl no seu pubspec.yaml
 
 class DriverActivitiesScreen extends StatefulWidget {
   const DriverActivitiesScreen({super.key});
@@ -14,82 +13,207 @@ class DriverActivitiesScreen extends StatefulWidget {
 }
 
 class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
-  // 1. Variável para controlar o dia selecionado (Começa com HOJE)
   DateTime _selectedDate = DateTime.now();
+  List<VehicleUsage> _allActivities = [];
+  List<VehicleUsage> _filteredActivities = [];
+  bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
 
-// Pega as atividades direto do banco
-  final List<Activity> _allActivities = MockDatabase.activities;
-
-  // Helper para verificar se duas datas são o mesmo dia (ignora horas)
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
+  @override
+  void initState() {
+    super.initState();
+    _loadActivities();
   }
+
+  Future<void> _loadActivities() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final data = await UsageService.getMyUsages();
+      if (mounted) {
+        setState(() {
+          _allActivities = data;
+          _applyFilters(); // Aplica filtros iniciais
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // Lógica de filtro combinada (Data + Busca Texto)
+  void _applyFilters() {
+    setState(() {
+      _filteredActivities = _allActivities.where((usage) {
+        final matchesDate = _isSameDay(usage.usageStart.toLocal(), _selectedDate);
+        final query = _searchController.text.toLowerCase();
+        final matchesSearch = usage.vehicle.make.toLowerCase().contains(query) ||
+            usage.vehicle.model.toLowerCase().contains(query) ||
+            usage.vehicle.licensePlate.toLowerCase().contains(query) ||
+            usage.status.toLowerCase().contains(query);
+
+        return matchesDate && matchesSearch;
+      }).toList();
+    });
+  }
+
+  bool _isSameDay(DateTime d1, DateTime d2) =>
+      d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
 
   @override
   Widget build(BuildContext context) {
-    // FILTRO: Pegamos apenas as atividades do dia selecionado
-    final dayActivities = _allActivities
-        .where((a) => _isSameDay(a.time, _selectedDate))
-        .toList();
-
-    // ORDENAÇÃO: Garantimos que estão por ordem de horário
-    dayActivities.sort((a, b) => a.time.compareTo(b.time));
-
     return Scaffold(
-      backgroundColor: Colors.grey.shade100, // Fundo levemente cinza
-      // ... dentro do Scaffold ...
-      appBar: CustomAppBar(
-        title: 'Minhas Viagens',
-
-      ),
-      // ... body: Column ...
+      backgroundColor: Colors.white,
+      appBar: const CustomAppBar(title: 'Minhas Viagens'),
       body: Column(
         children: [
-          // --- PARTE 1: CALENDÁRIO HORIZONTAL ---
-          _buildDateSelector(),
-
-          // --- PARTE 2 e 3: LISTA DE ATIVIDADES ---
+          _buildEnhancedHeader(),
+          _buildSearchField(),
           Expanded(
-            child: dayActivities.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: dayActivities.length,
-              itemBuilder: (context, index) {
-                final activity = dayActivities[index];
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredActivities.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _loadActivities,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _filteredActivities.length,
+                          itemBuilder: (context, index) {
+                            final activity = _filteredActivities[index];
+                            return _buildTimelineCard(activity, index == 0);
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                // LÓGICA DO DESTAQUE:
-                // Se for a primeira atividade da lista E for hoje,
-                // mostramos o Card Heroico.
-                bool isFirstToday = index == 0 && _isSameDay(_selectedDate, DateTime.now());
+  // Campo de busca moderno
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => _applyFilters(),
+        decoration: InputDecoration(
+          hintText: "Buscar por veículo, placa ou status...",
+          prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        ),
+      ),
+    );
+  }
 
-                if (isFirstToday) {
-                  return Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      _buildHeroCard(activity),
-                      const SizedBox(height: 24),
-                      // Um pequeno título para separar
-                      if (dayActivities.length > 1)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Próximas paradas",
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.bold,
-                            ),
+  // Cabeçalho com Calendário Horizontal Responsivo
+  Widget _buildEnhancedHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  DateFormat('MMMM, yyyy').format(_selectedDate),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.calendar_month, color: Colors.blueAccent),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setState(() => _selectedDate = picked);
+                      _applyFilters();
+                    }
+                  },
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 90,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 16),
+              itemCount: 30, // Mostra 30 dias a partir de hoje
+              itemBuilder: (ctx, i) {
+                final date = DateTime.now().add(Duration(days: i - 3)); // Começa 3 dias atrás
+                final isSelected = _isSameDay(date, _selectedDate);
+                
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedDate = date);
+                    _applyFilters();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 65,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.blueAccent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? Colors.blueAccent : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          DateFormat('E').format(date).toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isSelected ? Colors.white70 : Colors.grey,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      const SizedBox(height: 8),
-                    ],
-                  );
-                }
-
-                // Itens normais (Timeline)
-                return _buildTimelineItem(activity, isLast: index == dayActivities.length - 1);
+                        const SizedBox(height: 5),
+                        Text(
+                          date.day.toString(),
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               },
             ),
           ),
@@ -98,253 +222,135 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
     );
   }
 
-  // --- WIDGET: SELETOR DE DATA HORIZONTAL ---
-  Widget _buildDateSelector() {
-    return Container(
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-        itemCount: 14, // Mostra os próximos 14 dias
-        itemBuilder: (context, index) {
-          final date = DateTime.now().add(Duration(days: index));
-          final isSelected = _isSameDay(date, _selectedDate);
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedDate = date;
-              });
-            },
-            child: Container(
-              width: 60,
-              margin: const EdgeInsets.only(right: 12.0),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.blueAccent : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(16.0),
-                border: isSelected ? null : Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Dia da semana (Seg, Ter...)
-                  Text(
-                    _getWeekDay(date.weekday),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSelected ? Colors.white70 : Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Dia do mês (12, 13...)
-                  Text(
-                    date.day.toString(),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // --- WIDGET: CARTÃO DE DESTAQUE (HERO) ---
-  Widget _buildHeroCard(Activity activity) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  "EM ANDAMENTO",
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const Icon(Icons.timer, color: Colors.white70),
+  // Card de Missão Estilo Timeline
+  Widget _buildTimelineCard(VehicleUsage usage, bool isHero) {
+    final bool isStarted = usage.status == "STARTED";
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InkWell(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailsScreen(activity: usage))),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isHero && isStarted ? Colors.blueAccent : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade100),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            activity.title,
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            activity.route,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TripDetailsScreen(activity: activity),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue.shade800,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              minimumSize: const Size(double.infinity, 50),
-
-            ),
-            child: const Text("VER DETALHES"),
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- WIDGET: ITEM DA LINHA DO TEMPO (TIMELINE) ---
-  Widget _buildTimelineItem(Activity activity, {bool isLast = false}) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Coluna da Esquerda (Hora + Linha)
-          SizedBox(
-            width: 50,
-            child: Column(
+          child: IntrinsicHeight(
+            child: Row(
               children: [
-                Text(
-                  "${activity.time.hour}:${activity.time.minute.toString().padLeft(2, '0')}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                // A linha vertical
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: Colors.grey.shade300,
+                // Indicador de Status Lateral
+                Container(
+                  width: 6,
+                  decoration: BoxDecoration(
+                    color: isStarted ? Colors.orange : Colors.blue,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      bottomLeft: Radius.circular(20),
                     ),
                   ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              DateFormat('HH:mm').format(usage.usageStart),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isHero && isStarted ? Colors.white : Colors.black54,
+                              ),
+                            ),
+                            _buildStatusBadge(usage.status, isHero && isStarted),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "${usage.vehicle.make} ${usage.vehicle.model}",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isHero && isStarted ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.tag, size: 14, color: isHero && isStarted ? Colors.white70 : Colors.grey),
+                            Text(
+                              " Placa: ${usage.vehicle.licensePlate}",
+                              style: TextStyle(
+                                color: isHero && isStarted ? Colors.white70 : Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: isHero && isStarted ? Colors.white70 : Colors.grey.shade300,
+                ),
+                const SizedBox(width: 8),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
 
-          // 2. O Marcador (Bolinha)
-          Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.blueAccent, width: 2),
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 16),
-
-          // 3. O Cartão da Atividade
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 24.0),
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        activity.route,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+  Widget _buildStatusBadge(String status, bool isInverse) {
+    Color color = status == "STARTED" ? Colors.orange : Colors.blue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isInverse ? Colors.white.withOpacity(0.2) : color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        status.replaceAll('_', ' '),
+        style: TextStyle(
+          color: isInverse ? Colors.white : color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return const Center(
+    return SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.event_available, size: 80, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            "Nenhuma atividade para este dia.",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+          const SizedBox(height: 100),
+          Icon(Icons.directions_bus_filled_outlined, size: 80, color: Colors.grey.shade200),
+          const SizedBox(height: 20),
+          const Text(
+            "Nenhuma missão encontrada",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black54),
           ),
+          const SizedBox(height: 8),
+          const Text("Tente selecionar outra data ou termo de busca."),
         ],
       ),
     );
-  }
-
-  // Helper simples para dia da semana
-  String _getWeekDay(int weekday) {
-    const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    return days[weekday - 1];
   }
 }

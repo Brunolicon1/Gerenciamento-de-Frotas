@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 // Importa as 3 telas que vamos navegar
 import 'dashboard_screen.dart';
-import 'approvals_screen.dart';
+import 'solicitação/approvals_screen.dart';
 import 'reports_screen.dart';
 
 // Importa a AppBar e a tela de Login (para o Logout)
