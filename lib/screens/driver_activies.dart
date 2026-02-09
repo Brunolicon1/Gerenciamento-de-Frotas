@@ -1,10 +1,7 @@
-import 'package:extensao3/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:extensao3/widgets/custom_app_bar.dart'; // <--- Importe seu widgetimport 'trip_details_screen.dart';
-
-import '../data/mock_database.dart';   // <--- Para o botão de sair funcionar
-
-
+import 'package:extensao3/widgets/custom_app_bar.dart';
+import 'package:extensao3/screens/trip_details_screen.dart';
+import '../services/driver/usage_service.dart'; 
 
 class DriverActivitiesScreen extends StatefulWidget {
   const DriverActivitiesScreen({super.key});
@@ -14,91 +11,114 @@ class DriverActivitiesScreen extends StatefulWidget {
 }
 
 class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
-  // 1. Variável para controlar o dia selecionado (Começa com HOJE)
   DateTime _selectedDate = DateTime.now();
+  List<dynamic> _allActivities = [];
+  bool _isLoading = true;
 
-// Pega as atividades direto do banco
-  final List<Activity> _allActivities = MockDatabase.activities;
+  @override
+  void initState() {
+    super.initState();
+    _loadActivities();
+  }
 
-  // Helper para verificar se duas datas são o mesmo dia (ignora horas)
+  Future<void> _loadActivities() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      final data = await UsageService.getMyUsages();
+      
+      if (mounted) {
+        setState(() {
+          _allActivities = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year &&
         date1.month == date2.month &&
         date1.day == date2.day;
   }
 
+  String _getWeekDay(int weekday) {
+    const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    return days[weekday - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
-    // FILTRO: Pegamos apenas as atividades do dia selecionado
-    final dayActivities = _allActivities
-        .where((a) => _isSameDay(a.time, _selectedDate))
-        .toList();
+    final dayActivities = _allActivities.where((a) {
+      final request = a['vehicleRequest'] ?? a['request'];
+      if (request == null || request['startDateTime'] == null) return false;
 
-    // ORDENAÇÃO: Garantimos que estão por ordem de horário
-    dayActivities.sort((a, b) => a.time.compareTo(b.time));
+      DateTime activityDate = DateTime.parse(request['startDateTime']).toLocal();
+      return _isSameDay(activityDate, _selectedDate);
+    }).toList();
+
+    dayActivities.sort((a, b) {
+       DateTime t1 = DateTime.parse((a['vehicleRequest'] ?? a['request'])['startDateTime']);
+       DateTime t2 = DateTime.parse((b['vehicleRequest'] ?? b['request'])['startDateTime']);
+       return t1.compareTo(t2);
+    });
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100, // Fundo levemente cinza
-      // ... dentro do Scaffold ...
-      appBar: CustomAppBar(
-        title: 'Minhas Viagens',
-
-      ),
-      // ... body: Column ...
+      backgroundColor: Colors.grey.shade100,
+      appBar: const CustomAppBar(title: 'Minhas Viagens'),
       body: Column(
         children: [
-          // --- PARTE 1: CALENDÁRIO HORIZONTAL ---
           _buildDateSelector(),
-
-          // --- PARTE 2 e 3: LISTA DE ATIVIDADES ---
           Expanded(
-            child: dayActivities.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: dayActivities.length,
-              itemBuilder: (context, index) {
-                final activity = dayActivities[index];
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : dayActivities.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _loadActivities,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16.0),
+                          itemCount: dayActivities.length,
+                          itemBuilder: (context, index) {
+                            final activity = dayActivities[index];
+                            bool isFirstToday = index == 0 && _isSameDay(_selectedDate, DateTime.now());
 
-                // LÓGICA DO DESTAQUE:
-                // Se for a primeira atividade da lista E for hoje,
-                // mostramos o Card Heroico.
-                bool isFirstToday = index == 0 && _isSameDay(_selectedDate, DateTime.now());
-
-                if (isFirstToday) {
-                  return Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      _buildHeroCard(activity),
-                      const SizedBox(height: 24),
-                      // Um pequeno título para separar
-                      if (dayActivities.length > 1)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Próximas paradas",
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                            if (isFirstToday) {
+                              return Column(
+                                children: [
+                                  const SizedBox(height: 8),
+                                  _buildHeroCard(activity),
+                                  const SizedBox(height: 24),
+                                  if (dayActivities.length > 1)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        "Próximas paradas",
+                                        style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                ],
+                              );
+                            }
+                            return _buildTimelineItem(activity, isLast: index == dayActivities.length - 1);
+                          },
                         ),
-                      const SizedBox(height: 8),
-                    ],
-                  );
-                }
-
-                // Itens normais (Timeline)
-                return _buildTimelineItem(activity, isLast: index == dayActivities.length - 1);
-              },
-            ),
+                      ),
           ),
         ],
       ),
     );
   }
 
-  // --- WIDGET: SELETOR DE DATA HORIZONTAL ---
   Widget _buildDateSelector() {
     return Container(
       height: 100,
@@ -115,17 +135,13 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-        itemCount: 14, // Mostra os próximos 14 dias
+        itemCount: 14, 
         itemBuilder: (context, index) {
           final date = DateTime.now().add(Duration(days: index));
           final isSelected = _isSameDay(date, _selectedDate);
 
           return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedDate = date;
-              });
-            },
+            onTap: () => setState(() => _selectedDate = date),
             child: Container(
               width: 60,
               margin: const EdgeInsets.only(right: 12.0),
@@ -137,7 +153,6 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Dia da semana (Seg, Ter...)
                   Text(
                     _getWeekDay(date.weekday),
                     style: TextStyle(
@@ -146,7 +161,6 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Dia do mês (12, 13...)
                   Text(
                     date.day.toString(),
                     style: TextStyle(
@@ -160,168 +174,6 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  // --- WIDGET: CARTÃO DE DESTAQUE (HERO) ---
-  Widget _buildHeroCard(Activity activity) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  "EM ANDAMENTO",
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const Icon(Icons.timer, color: Colors.white70),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            activity.title,
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            activity.route,
-            style: const TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TripDetailsScreen(activity: activity),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue.shade800,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              minimumSize: const Size(double.infinity, 50),
-
-            ),
-            child: const Text("VER DETALHES"),
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- WIDGET: ITEM DA LINHA DO TEMPO (TIMELINE) ---
-  Widget _buildTimelineItem(Activity activity, {bool isLast = false}) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Coluna da Esquerda (Hora + Linha)
-          SizedBox(
-            width: 50,
-            child: Column(
-              children: [
-                Text(
-                  "${activity.time.hour}:${activity.time.minute.toString().padLeft(2, '0')}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                // A linha vertical
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: Colors.grey.shade300,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // 2. O Marcador (Bolinha)
-          Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.blueAccent, width: 2),
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 16),
-
-          // 3. O Cartão da Atividade
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 24.0),
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        activity.route,
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -342,9 +194,96 @@ class _DriverActivitiesScreenState extends State<DriverActivitiesScreen> {
     );
   }
 
-  // Helper simples para dia da semana
-  String _getWeekDay(int weekday) {
-    const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-    return days[weekday - 1];
+  Widget _buildHeroCard(dynamic activity) {
+    final request = activity['vehicleRequest'] ?? activity['request'];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20.0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.blue.shade800, Colors.blue.shade600], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(20.0),
+        boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 10))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                child: Text(
+                  (activity['status'] ?? "PENDENTE").toString().replaceAll('_', ' '),
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Icon(Icons.timer, color: Colors.white70),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(request['purpose'] ?? "Missão", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text("Destino: ${request['destCity'] ?? 'Não informado'}", style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TripDetailsScreen(activity: activity))),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.blue.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), minimumSize: const Size(double.infinity, 50)),
+            child: const Text("VER DETALHES"),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineItem(dynamic activity, {bool isLast = false}) {
+    final request = activity['vehicleRequest'] ?? activity['request'];
+    DateTime time = DateTime.parse(request['startDateTime']).toLocal();
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 50,
+            child: Column(
+              children: [
+                Text("${time.hour}:${time.minute.toString().padLeft(2, '0')}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 8),
+                if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                width: 12, height: 12,
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.blueAccent, width: 2), color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TripDetailsScreen(activity: activity))),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 24.0),
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12.0), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 3))]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(request['purpose'] ?? "Missão", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text("${request['destCity']} - ${request['destState']}", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
