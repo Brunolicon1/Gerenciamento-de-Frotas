@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/vehicle/vehicle_model.dart';
 import '../models/fleet_stats.dart';
 import '../services/vehicle/vehicle_service.dart';
-import 'vehicle_registration_screen.dart';
+import 'vehicle/vehicle_registration_screen.dart';
 import '../services/token_storage.dart';
 
 class DashboardScreen extends StatefulWidget {

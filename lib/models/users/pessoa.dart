@@ -1,7 +1,6 @@
 // lib/models/users/pessoa.dart
 
 import 'user_role.dart';
-// Importamos as subclasses para conseguir criá-las
 import 'admin.dart';
 import 'gestor_frotas.dart';
 import 'motorista.dart';
@@ -26,23 +25,50 @@ abstract class Pessoa {
   bool get isDriver => role == UserRole.DRIVER;
   bool get isSolicitante => role == UserRole.REQUESTER;
 
-  // Factory inteligente que decide qual arquivo chamar
-factory Pessoa.fromJson(Map<String, dynamic> json) {
-  // A API deve retornar o campo 'role' baseado na tabela user_roles
-  String roleString = json['role'] ?? 'REQUESTER';
+  factory Pessoa.fromJson(Map<String, dynamic> json) {
+    // 1. Tratamento da lista de roles vinda da API
+    // A API retorna "roles": ["DRIVER"]
+    final List<dynamic> rolesList = json['roles'] ?? [];
+    
+    // Define a prioridade caso o usuário tenha mais de um papel no banco
+    String roleString = 'REQUESTER'; 
+    if (rolesList.contains('ADMIN')) {
+      roleString = 'ADMIN';
+    } else if (rolesList.contains('FLEET_MANAGER')) {
+      roleString = 'FLEET_MANAGER';
+    } else if (rolesList.contains('DRIVER')) {
+      roleString = 'DRIVER';
+    }
 
-  switch (roleString) {
-    case 'ADMIN':
-      return Admin.fromJson(json);
-    case 'FLEET_MANAGER':
-      return GestorFrotas.fromJson(json);
-    case 'DRIVER':
-      return Motorista.fromJson(json);
-    case 'REQUESTER':
-    default:
-      return Solicitante.fromJson(json); // Crie esta classe se não existir
+    // 2. Mapeamento dos campos obrigatórios conforme seu banco de dados
+    // Se a API não enviar o 'id' ou 'cpf', usamos valores vazios/zero para não quebrar
+    final int id = json['id'] ?? 0;
+    final String name = json['name'] ?? 'Usuário';
+    final String cpf = json['cpf'] ?? '';
+
+    // Criamos um novo mapa para passar para os construtores das subclasses
+    // garantindo que o campo 'role' (singular) exista para elas
+    final mapParaSubclasse = {
+      ...json,
+      'role': roleString,
+      'id': id,
+      'name': name,
+      'cpf': cpf,
+    };
+
+    // 3. Redirecionamento para a classe correta
+    switch (roleString) {
+      case 'ADMIN':
+        return Admin.fromJson(mapParaSubclasse);
+      case 'FLEET_MANAGER':
+        return GestorFrotas.fromJson(mapParaSubclasse);
+      case 'DRIVER':
+        return Motorista.fromJson(mapParaSubclasse);
+      case 'REQUESTER':
+      default:
+        return Solicitante.fromJson(mapParaSubclasse);
+    }
   }
-}
 
   Map<String, dynamic> toJson();
 }

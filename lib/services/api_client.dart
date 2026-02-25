@@ -28,13 +28,18 @@ class ApiClient {
 
   // ---------------- POST ----------------
 
-  static Future<http.Response> post(String path, {dynamic body}) async {
-    return http.post(
-      Uri.parse("$_baseUrl$path"),
-      headers: await _headers(),
-      body: body != null ? jsonEncode(body) : null,
-    );
-  }
+  static Future<http.Response> post(String path, {dynamic body, bool isPublic = false}) async {
+  final headers = await _headers();
+
+  
+  if (isPublic) headers.remove("Authorization"); // Remove o "Bearer null" no login
+
+  return http.post(
+    Uri.parse("$_baseUrl$path"),
+    headers: headers,
+    body: body != null ? jsonEncode(body) : null,
+  );
+}
 
   // ---------------- PATCH (NOVO) ----------------
 

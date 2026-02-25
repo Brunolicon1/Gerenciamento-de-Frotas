@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
-import '../../services/vehicle/vehicle_service.dart';
+import '../../../services/vehicle/vehicle_service.dart';
 
 class VehicleRegistrationScreen extends StatefulWidget {
   const VehicleRegistrationScreen({super.key});
