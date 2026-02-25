@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:extensao3/feature/registration-screen.dart';
 import 'package:extensao3/screens/requester/new_request_screen.dart';
 import 'package:extensao3/screens/main_screen.dart';
-import 'package:extensao3/screens/driver_activies_screen.dart';
+import 'package:extensao3/screens/driver/driver_activies_screen.dart';
 
 // Integração com a API e Modelos
 import 'package:extensao3/services/auth_service.dart';

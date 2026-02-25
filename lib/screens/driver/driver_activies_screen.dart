@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
-import 'package:extensao3/screens/trip_details_screen.dart';
-import '../services/driver/usage_service.dart';
-import '../models/vehicle/vehicle_usage_model.dart';
+import 'package:extensao3/screens/driver/trip_details_screen.dart';
+import '../../services/driver/usage_service.dart';
+import '../../models/vehicle/vehicle_usage_model.dart';
 import 'package:intl/intl.dart';
 
 class DriverActivitiesScreen extends StatefulWidget {

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../models/vehicle/vehicle_request.dart';
 import '../../../services/vehicle/request_service.dart';
-import './ApprovalFormScreen.dart';
+import 'ApprovalFormScreen.dart';
 
 class ApprovalsScreen extends StatefulWidget {
   const ApprovalsScreen({super.key});

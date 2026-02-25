@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'feature/login-screen.dart';
 import 'screens/main_screen.dart';
-import 'screens/driver_activies_screen.dart';
+import 'screens/driver/driver_activies_screen.dart';
 import 'services/token_storage.dart';
 import 'screens/requester/requester_screen.dart';
 
