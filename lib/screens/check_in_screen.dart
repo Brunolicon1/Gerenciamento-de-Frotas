@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:extensao3/widgets/custom_app_bar.dart';
 import '../services/driver/usage_service.dart';
 import '../models/vehicle/vehicle_usage_model.dart';
-import 'driver_activies.dart';
+import 'driver_activies_screen.dart';
 
 class CheckInScreen extends StatefulWidget {
   final VehicleUsage activity;

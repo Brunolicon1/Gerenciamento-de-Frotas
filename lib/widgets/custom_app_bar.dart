@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:extensao3/feature/login-screen.dart'; // Necessário para navegar de volta
-import 'package:extensao3/data/mock_database.dart';   // Para limpar o usuário logado
+import 'package:extensao3/feature/login-screen.dart'; 
+import 'package:extensao3/services/token_storage.dart'; // Importe o seu TokenStorage
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final Widget? leading;
-  // Removemos o 'actions' daqui. Não pedimos mais isso para quem chama.
 
   const CustomAppBar({
     super.key,
@@ -16,38 +15,68 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      title: Text(title),
+      title: Text(
+        title, 
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+      ),
       leading: leading,
 
-      // CONFIGURAÇÃO FIXA DE ESTILO
-      backgroundColor: Colors.blueAccent,
+      // Alinhando com o azul marinho policial usado no login
+      backgroundColor: const Color(0xFF1A237E), 
       foregroundColor: Colors.white,
       elevation: 4.0,
 
-      // AQUI ESTÁ A MUDANÇA: O botão agora é fixo da barra
       actions: [
         IconButton(
-          icon: const Icon(Icons.logout),
+          icon: const Icon(Icons.logout_rounded),
           tooltip: 'Sair do Sistema',
           onPressed: () {
-            _handleLogout(context);
+            _showLogoutConfirmation(context);
           },
         ),
       ],
     );
   }
 
-  // Função privada para organizar a lógica de sair
-  void _handleLogout(BuildContext context) {
-    // 1. Limpa os dados do usuário no nosso Mock
-    MockDatabase.logout();
-
-    // 2. Redireciona para o Login (removendo o histórico de volta)
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false, // Remove todas as rotas anteriores da pilha
+  // Melhora de UX: Confirmação antes de sair
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Encerrar Sessão'),
+          content: const Text('Deseja realmente sair do sistema de gestão de frota?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('CANCELAR'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fecha o diálogo
+                _handleLogout(context);      // Executa o logout
+              },
+              child: const Text('SAIR', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  // Função assíncrona para garantir a limpeza do token
+  Future<void> _handleLogout(BuildContext context) async {
+    // 1. Apaga o token e a role do armazenamento seguro
+    await TokenStorage.clear();
+
+    // 2. Redireciona para o Login limpando toda a pilha de navegação
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false, 
+      );
+    }
   }
 
   @override

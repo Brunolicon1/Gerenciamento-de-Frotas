@@ -1,14 +1,15 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:intl/date_symbol_data_local.dart'; // 1. Importe para carregar os símbolos locais
+import 'package:intl/date_symbol_data_local.dart';
 import 'feature/login-screen.dart';
+import 'screens/main_screen.dart';
+import 'screens/driver_activies_screen.dart';
+import 'services/token_storage.dart';
+import 'screens/requester/requester_screen.dart';
 
 void main() async {
-  // 2. Garante que os bindings do Flutter estejam prontos
   WidgetsFlutterBinding.ensureInitialized();
-
-    // 3. Inicializa a formatação para o padrão brasileiro
-    await initializeDateFormatting('pt_BR', null);
-
+  await initializeDateFormatting('pt_BR', null);
   runApp(const MyApp());
 }
 
@@ -18,23 +19,60 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // Título geral da aplicação (visto no gerenciador de apps)
       title: 'Gestão de Frotas',
-
       locale: const Locale('pt', 'BR'),
-      // Define o tema geral (cores, fontes)
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
         useMaterial3: true,
       ),
-
-      // 'home' define qual tela (Widget) será exibida
-      // quando o app abrir.
-      home: const LoginScreen(),
-
-      // Remove a faixa de "DEBUG" no canto da tela
+      // Agora chamamos o verificador de sessão
+      home: const AuthWrapper(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: TokenStorage.getToken(), // Verifica se existe token salvo
+      builder: (context, snapshot) {
+        // Enquanto verifica o storage, mostra uma tela de carregamento
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Se NÃO tem token, vai para o Login
+        if (snapshot.data == null || snapshot.data!.isEmpty) {
+          return const LoginScreen();
+        }
+
+        // Se TEM token, precisamos saber qual é a Role para mandar para a tela certa
+        return FutureBuilder<String>(
+          future: TokenStorage.getUserRole(), //
+          builder: (context, roleSnapshot) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+
+            final role = roleSnapshot.data;
+
+            // Lógica de redirecionamento idêntica à do seu LoginScreen
+            if (role == 'DRIVER') {
+              return const DriverActivitiesScreen();
+            } else if (role == 'ADMIN' || role == 'FLEET_MANAGER') {
+              return const MainScreen();
+            } else {
+              return const RequesterScreen();
+            }
+          },
+        );
+      },
+    );
+  }
+}

@@ -1,43 +1,36 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/users/pessoa.dart';
 import './token_storage.dart';
+import './api_client.dart'; // Importe seu ApiClient
 
 class AuthService {
-  final String _baseUrl = "http://200.137.0.24:31628/auth";
-
   Future<Pessoa?> login(String cpf, String password) async {
-    final url = Uri.parse('$_baseUrl/login');
-
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"cpf": cpf, "password": password}),
+      // Usando o ApiClient para manter o padrão do projeto
+      // O endpoint aqui é '/auth/login' pois a baseUrl do ApiClient não tem o '/auth'
+      final response = await ApiClient.post(
+        '/auth/login', 
+        body: {"cpf": cpf, "password": password},
+        isPublic: true,
       );
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         
-        // 1. Extrai o Token e a primeira Role da lista enviada pela API
-        String token = data['token'];
-        String role = (data['roles'] as List).first.toString(); // Ex: 'FLEET_MANAGER'
+        // 1. Salva o Token
+        await TokenStorage.saveToken(data['token']);
 
-        // 2. Salva o Token no Secure Storage
-        await TokenStorage.saveToken(token);
+        // 2. Extrai a role principal para o Storage (se necessário no seu app)
+        if (data['roles'] != null && (data['roles'] as List).isNotEmpty) {
+          await TokenStorage.saveRole(data['roles'][0]);
+        }
 
-      await TokenStorage.saveRole(role);
+        // 3. Injeta o CPF no mapa (necessário pois seus modelos exigem CPF)
+        data['cpf'] = cpf;
 
-        // 4. Monta o objeto Pessoa para o restante do App
-        Map<String, dynamic> userJson = {
-          "id": 0, // Ajustar se a API enviar o ID real
-          "name": data['name'],
-          "cpf": cpf,
-          "role": role,
-        };
-
-        return Pessoa.fromJson(userJson);
+        // 4. Deixa o Pessoa.fromJson decidir quem é o usuário baseado na lista de roles
+        return Pessoa.fromJson(data);
       }
       return null;
     } catch (e) {
