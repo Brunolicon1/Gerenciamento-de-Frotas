@@ -13,7 +13,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String _userRole = ""; // Variável dinâmica
+  String _userRole = "";
   late Future<List<Vehicle>> futureVehicles;
   late Future<FleetStats> futureStats;
 
@@ -26,7 +26,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _refreshData() {
     setState(() {
+      // Iniciamos a busca dos veículos
       futureVehicles = VehicleService.getAll();
+      // Processamos as estatísticas a partir do resultado da busca de veículos
       futureStats = _buildStatsFromVehicles();
     });
   }
@@ -35,23 +37,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final role = await TokenStorage.getUserRole();
     if (mounted) {
       setState(() {
-        _userRole = role; // Força a interface a redesenhar e esconder o botão
+        _userRole = role;
       });
     }
   }
 
   Future<FleetStats> _buildStatsFromVehicles() async {
-    final vehicles = await VehicleService.getAll();
+    // Aguarda o Future de veículos para evitar chamadas duplicadas à API
+    final vehicles = await futureVehicles;
     int available = 0, inUse = 0, maintenance = 0;
 
     for (var v in vehicles) {
-      final s = v.status.toLowerCase();
-      if (s.contains('disponivel'))
+      final s = v.status.toUpperCase();
+      // Mapeamento baseado nos status comuns de frota policial/gestão
+      if (s.contains('DISPONIVEL') || s == 'ACTIVE') {
         available++;
-      else if (s.contains('uso'))
+      } else if (s.contains('USO') || s.contains('EM_USO')) {
         inUse++;
-      else if (s.contains('manutencao'))
+      } else if (s.contains('MANUTENCAO')) {
         maintenance++;
+      }
     }
 
     return FleetStats(
@@ -65,20 +70,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-
-    // BREAKPOINTS RESPONSIVOS
-    final bool isMobileSmall = screenWidth < 400; // iPhone 12, SE, etc.
-    final bool isWeb = screenWidth > 900; // Desktop/Web
+    final bool isMobileSmall = screenWidth < 400;
+    final bool isWeb = screenWidth > 900;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: const Text("Gestão de Frota"),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshData),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async => _refreshData(),
         child: SingleChildScrollView(
@@ -92,12 +88,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildSectionHeader('Resumo Operacional', null),
                   const SizedBox(height: 16),
 
-                  // GRID DE KPIs ADAPTATIVO
                   _buildKpiGrid(isWeb, isMobileSmall),
 
                   const SizedBox(height: 24),
 
-                  // SEÇÃO DE GRÁFICOS ADAPTATIVA
                   _buildChartsSection(isWeb),
 
                   const SizedBox(height: 32),
@@ -115,7 +109,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   }),
                   const SizedBox(height: 16),
 
-                  // GRID DE VEÍCULOS ADAPTATIVO
                   _buildVehicleGrid(isWeb),
                 ],
               ),
@@ -135,7 +128,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!snapshot.hasData) return const LinearProgressIndicator();
         final stats = snapshot.data!;
 
-        // Define o número de colunas: Web (4), Mobile Médio (2), iPhone 12/Pequeno (1)
         int crossAxisCount = isWeb ? 4 : (isMobileSmall ? 1 : 2);
 
         return GridView.count(
@@ -144,21 +136,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: isWeb ? 2.2 : (isMobileSmall ? 3.5 : 1.4),
+          childAspectRatio: isWeb ? 2.2 : (isMobileSmall ? 3.8 : 1.6),
           children: [
             _statCard("Total", stats.total, Icons.directions_car, Colors.blue),
-            _statCard(
-              "Disponíveis",
-              stats.available,
-              Icons.check_circle,
-              Colors.green,
-            ),
-            _statCard(
-              "Em Uso",
-              stats.inUse,
-              Icons.local_shipping,
-              Colors.orange,
-            ),
+            _statCard("Disponíveis", stats.available, Icons.check_circle, Colors.green),
+            _statCard("Em Uso", stats.inUse, Icons.local_shipping, Colors.orange),
             _statCard("Manutenção", stats.maintenance, Icons.build, Colors.red),
           ],
         );
@@ -167,34 +149,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildChartsSection(bool isWeb) {
-    if (isWeb) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _buildChartCard("Status da Frota", _buildPieChart())),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildChartCard("Uso Semanal (km)", _buildBarChart()),
-          ),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          _buildChartCard("Status da Frota", _buildPieChart()),
-          const SizedBox(height: 16),
-          _buildChartCard("Uso Semanal (km)", _buildBarChart()),
-        ],
-      );
-    }
+    return FutureBuilder<FleetStats>(
+      future: futureStats,
+      builder: (context, snapshot) {
+        final stats = snapshot.data ?? FleetStats(total: 0, available: 0, inUse: 0, maintenance: 0);
+        
+        if (isWeb) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildChartCard("Status da Frota (%)", _buildPieChart(stats))),
+              const SizedBox(width: 16),
+              Expanded(child: _buildChartCard("Uso Semanal (km rodados)", _buildBarChart())),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              _buildChartCard("Status da Frota (%)", _buildPieChart(stats)),
+              const SizedBox(height: 16),
+              _buildChartCard("Uso Semanal (km rodados)", _buildBarChart()),
+            ],
+          );
+        }
+      },
+    );
   }
 
   Widget _buildVehicleGrid(bool isWeb) {
     return FutureBuilder<List<Vehicle>>(
       future: futureVehicles,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
         final vehicles = snapshot.data ?? [];
 
         return GridView.builder(
@@ -202,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: vehicles.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isWeb ? 3 : 1, // 3 colunas web, 1 coluna mobile
+            crossAxisCount: isWeb ? 3 : 1,
             mainAxisExtent: 85,
             crossAxisSpacing: 12,
             mainAxisSpacing: 8,
@@ -223,30 +211,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, color: color, size: 24),
+            ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "$value",
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    label,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("$value", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+              ],
             ),
           ],
         ),
@@ -266,97 +246,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(height: 140, child: chart),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 20),
+            SizedBox(height: 160, child: chart),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPieChart() {
+  Widget _buildPieChart(FleetStats stats) {
+    // Cálculo de porcentagem seguro para evitar divisão por zero
+    double total = stats.total == 0 ? 1 : stats.total.toDouble();
+    double percDisponivel = (stats.available / total);
+
     return Row(
       children: [
-        const SizedBox(
-          width: 80,
-          height: 80,
-          child: CircularProgressIndicator(
-            value: 0.6,
-            strokeWidth: 15,
-            color: Colors.green,
-            backgroundColor: Colors.orange,
-          ),
-        ),
-        const SizedBox(width: 24),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Stack(
+          alignment: Alignment.center,
           children: [
-            _chartLegend(Colors.green, "Disponível"),
-            const SizedBox(height: 4),
-            _chartLegend(Colors.orange, "Em uso"),
+            SizedBox(
+              width: 90,
+              height: 90,
+              child: CircularProgressIndicator(
+                value: percDisponivel,
+                strokeWidth: 12,
+                color: Colors.green,
+                backgroundColor: Colors.orange.shade300,
+              ),
+            ),
+            Text("${(percDisponivel * 100).toStringAsFixed(0)}%", 
+                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _chartLegend(Colors.green, "Disponível", "${stats.available}"),
+              const SizedBox(height: 8),
+              _chartLegend(Colors.orange, "Em uso", "${stats.inUse}"),
+              const SizedBox(height: 8),
+              _chartLegend(Colors.red, "Manutenção", "${stats.maintenance}"),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _chartLegend(Color color, String label, String value) {
+    return Row(
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
   Widget _buildBarChart() {
+    // Dados simulados de KM rodados por dia
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _bar(40, "S"),
-        _bar(70, "T"),
-        _bar(90, "Q"),
-        _bar(55, "Q"),
-        _bar(80, "S"),
-        _bar(30, "S"),
-        _bar(20, "D"),
+        _bar(40, "S", "120"),
+        _bar(75, "T", "215"),
+        _bar(95, "Q", "310"),
+        _bar(60, "Q", "180"),
+        _bar(85, "S", "260"),
+        _bar(35, "S", "95"),
+        _bar(20, "D", "40"),
       ],
     );
   }
 
-  Widget _bar(double height, String label) {
+  Widget _bar(double height, String label, String value) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Text(value, style: const TextStyle(fontSize: 8, color: Colors.blueGrey)),
+        const SizedBox(height: 4),
         Container(
-          width: 14,
+          width: 16,
           height: height,
           decoration: BoxDecoration(
-            color: Colors.blue.shade400,
-            borderRadius: BorderRadius.circular(3),
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              colors: [Colors.blue.shade700, Colors.blue.shade300],
+            ),
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  Widget _chartLegend(Color color, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 6),
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
   Widget _vehicleCard(Vehicle v) {
+    Color statusColor = v.status.toUpperCase().contains('ACTIVE') || v.status.toUpperCase().contains('DISPONIVEL') 
+        ? Colors.green 
+        : (v.status.toUpperCase().contains('MANUTENCAO') ? Colors.red : Colors.orange);
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -365,41 +360,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: ListTile(
         dense: true,
-        leading: const Icon(
-          Icons.directions_car,
-          color: Colors.blueGrey,
-          size: 20,
+        leading: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          child: const Icon(Icons.directions_car, color: Colors.blueGrey, size: 20),
         ),
-        title: Text(
-          v.licensePlate,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-        ),
-        subtitle: Text(
-          "${v.make} ${v.model}",
-          style: const TextStyle(fontSize: 11),
-        ),
-        trailing: Icon(
-          Icons.circle,
-          color: v.status == 'ACTIVE' ? Colors.green : Colors.grey,
-          size: 10,
-        ),
+        title: Text(v.licensePlate, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        subtitle: Text("${v.make} ${v.model}", style: const TextStyle(fontSize: 11)),
+        trailing: Icon(Icons.circle, color: statusColor, size: 10),
       ),
     );
   }
 
   Widget _buildSectionHeader(String title, VoidCallback? onAdd) {
-    // Apenas o ADMIN tem permissão para ver e clicar no botão de novo veículo
     bool isAdmin = _userRole == "ADMIN";
-
-   return Row(
+    return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        if (onAdd != null && isAdmin) 
-          TextButton.icon(
-            onPressed: onAdd, 
-            icon: const Icon(Icons.add, size: 18), 
-            label: const Text("Novo")
+        if (onAdd != null && isAdmin)
+          ElevatedButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text("Novo Veículo"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
           ),
       ],
     );
